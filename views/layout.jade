@@ -39,10 +39,11 @@ html.no-js(lang= "en")
 			| !window.jQuery && document.write('&lt;script src="/js/jquery-1.4.2.min.js"&gt;&lt;/script&gt;')
 
 		//- script(src="http://cdn.socket.io/stable/socket.io.js")
-		//- script(src="/js/socket.io.js")
+		script(src="/js/socket.io.js")
 		script WEB_SOCKET_SWF_LOCATION = "/web-socket-js/WebSocketMain.swf";
 		script(src="/js/game.js?v=1")
+		script(src="/js/toys_extension.js?v=1")
 		script(src="/js/plugins.js?v=1")
-		//- script(src="/js/script.js?v=1")
+		script(src="/js/script.js?v=1")
 		- var ifLTIE9 = '<!--[if lt IE 9]><script type="text/javascript" src="/js/excanvas.js"></script><![endif]-->'
 		!= ifLTIE9
