@@ -4,12 +4,14 @@ var connect = require('connect')
     , express = require('express')
     , sys = require('sys')
     , io = require('Socket.IO-node')
-    , port = 8081;
+    , port = 3001;
 
 //Setup Express
 var server = express.createServer();
 server.configure(function(){
     server.set('views', __dirname + '/views');
+		server.set("view engine", "jade");
+		server.set("view options", { layout: "layout"});
     server.use(connect.bodyDecoder());
     server.use(connect.staticProvider(__dirname + '/static'));
     server.use(server.router);
@@ -18,7 +20,7 @@ server.configure(function(){
 //setup the errors
 server.error(function(err, req, res, next){
     if (err instanceof NotFound) {
-        res.render('404.ejs', { locals: { 
+        res.render('404.ejs', { layout: false, locals: {
                   header: '#Header#'
                  ,footer: '#Footer#'
                  ,title : '404 - Not Found'
@@ -27,7 +29,7 @@ server.error(function(err, req, res, next){
                  ,analyticssiteid: 'XXXXXXX' 
                 },status: 404 });
     } else {
-        res.render('500.ejs', { locals: { 
+        res.render('500.ejs', { layout: false, locals: {
                   header: '#Header#'
                  ,footer: '#Footer#'
                  ,title : 'The Server Encountered an Error'
@@ -61,14 +63,8 @@ io.on('connection', function(client){
 /////// ADD ALL YOUR ROUTES HERE  /////////
 
 server.get('/', function(req,res){
-  res.render('index.ejs', {
+  res.render('index', {
     locals : { 
-              header: '#Header#'
-             ,footer: '#Footer#'
-             ,title : 'Page Title'
-             ,description: 'Page Description'
-             ,author: 'Your Name'
-             ,analyticssiteid: 'XXXXXXX' 
             }
   });
 });
