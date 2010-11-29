@@ -2,48 +2,49 @@
 html.no-js(lang= "en")
   head
     meta(charset="utf-8")
-		- var ifIE = "<!--[if IE]><![endif]-->"
-		!= ifIE
-		- var chromeFrame = "IE=edge,chrome=1"
+    - var ifIE = "<!--[if IE]><![endif]-->"
+    != ifIE
+    - var chromeFrame = "IE=edge,chrome=1"
     meta(http-equiv="X-UA-Compatible", content=chromeFrame)
     title
     meta(name="description", content="")
     meta(name="author", content="")
-		meta(name="viewport", content="width=device-width; initial-scale=1.0; maximum-scale=1.0; user-scalable=0;")
+    meta(name="viewport", content="width=device-width; initial-scale=1.0; maximum-scale=1.0; user-scalable=0;")
 
-		link(rel="shortcut icon", href="/favicon.ico")
-		link(rel="apple-touch-icon", href="/apple-touch-icon.png")
+    link(rel="shortcut icon", href="/favicon.ico")
+    link(rel="apple-touch-icon", href="/apple-touch-icon.png")
 
-		link(rel="stylesheet", href="/css/style.css?v=1")
-		link(rel="stylesheet", href="/css/game.css?v=1")
-		link(rel="stylesheet", media="handheld", href="/css/handheld.css?v=1")
-		style BODY{ -webkit-user-select: none; }
-		script(src="/akihabara/gbox.js")
-		script(src="/akihabara/iphopad.js")
-		script(src="/akihabara/trigo.js")
-		script(src="/akihabara/toys.js")
-		script(src="/akihabara/help.js")
-		script(src="/akihabara/tool.js")
-		script(src="/akihabara/gamecycle.js")
-	- var ifIE6 = '<!--[if IE 6 ]> <body class="ie6"> <![endif]-->'
-	- var ifOther = "<!--[if (gt IE 6)|!(IE)]><!--> <body> <!--<![endif]-->"
-	!= ifIE6
-	!= ifOther
-		header
-		#container
-			#{body}
-		footer
+    link(rel="stylesheet", href="/css/style.css?v=1")
+    link(rel="stylesheet", href="/css/game.css?v=1")
+    link(rel="stylesheet", media="handheld", href="/css/handheld.css?v=1")
+    style BODY{ -webkit-user-select: none; }
+    script(src="/akihabara/gbox.js")
+    script(src="/akihabara/iphopad.js")
+    script(src="/akihabara/trigo.js")
+    script(src="/akihabara/toys.js")
+    script(src="/akihabara/help.js")
+    script(src="/akihabara/tool.js")
+    script(src="/akihabara/gamecycle.js")
+    - var ifIE6 = '<!--[if IE 6 ]> <body class="ie6"> <![endif]-->'
+    - var ifOther = "<!--[if (gt IE 6)|!(IE)]><!--> <body> <!--<![endif]-->"
+    != ifIE6
+    != ifOther
+    header
+    #container
+    #{body}
+    footer
 
-		script(src="http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js")
-		:javascript
-			| !window.jQuery && document.write('&lt;script src="/js/jquery-1.4.2.min.js"&gt;&lt;/script&gt;')
+    script(src="http://ajax.googleapis.com/ajax/libs/jquery/1.4/jquery.min.js")
+    - var nojQuery = '<script type="text/javascript"> !window.jQuery && document.write(\'<script src="/js/jquery-1.4.1.min.js"\/>\')</script>'
+    != nojQuery
 
-		//- script(src="http://cdn.socket.io/stable/socket.io.js")
-		script(src="/js/socket.io.js")
-		script WEB_SOCKET_SWF_LOCATION = "/web-socket-js/WebSocketMain.swf";
-		script(src="/js/game.js?v=1")
-		script(src="/js/toys_extension.js?v=1")
-		script(src="/js/plugins.js?v=1")
-		script(src="/js/script.js?v=1")
-		- var ifLTIE9 = '<!--[if lt IE 9]><script type="text/javascript" src="/js/excanvas.js"></script><![endif]-->'
-		!= ifLTIE9
+    //- script(src="http://cdn.socket.io/stable/socket.io.js")
+    script(src="/js/socket.io.js")
+    script WEB_SOCKET_SWF_LOCATION = "/web-socket-js/WebSocketMain.swf";
+    script(src="/js/game.js?v=1")
+    script(src="/js/toys_extension.js?v=1")
+    script(src="/js/plugins.js?v=1")
+    script(src="/js/script.js?v=1")
+    script(src="/js/event.js?v=1")
+    - var ifLTIE9 = '<!--[if lt IE 9]><script type="text/javascript" src="/js/excanvas.js"></script><![endif]-->'
+    != ifLTIE9
