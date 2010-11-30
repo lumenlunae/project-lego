@@ -117,13 +117,17 @@
 		object: "tilemaps",
 		property:"map",
 		value: {
+			id: "bundle-map-area1",
+			title: "Dungeon", 
 			addObjects: function() {
-				maingame.addPlayer(30,25);
+				//maingame.addPlayer(30,25);
 				addMap(tilemaps.map_below, "background", "below");
 				addMap(tilemaps.map_middle, "foreground", "middle");
 				addMap(tilemaps.map_above, "above", "above");
-				maingame.addNpc(25,24,[0],"traveler", null, [4,5]);
-				maingame.addEnemy("first1", "monster", 23, 26, true);
+				REPLACEME;
+				//maingame.addNpc(25,24,[0],"traveler", null, [4,5]);
+				//maingame.addEnemy(null, "monster", 23, 26, true);
+				serverDialogue.window = maingame.addChatWindow("server");
 			}
 		}
 	},
@@ -131,7 +135,6 @@
 		object:"tilemaps",
 		property:"map_below",
 		value:{
-			title:"Dungeon",
 			tileset:"tiles",
 			map:[[224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224,224],
 			[224,224,36,32,32,32,33,32,32,35,32,32,32,32,33,32,32,32,35,32,32,32,32,33,32,32,32,32,32,32,33,32,32,32,36,224,224,224,224,224],
@@ -172,7 +175,6 @@
 		object:"tilemaps",
 		property:"map_middle",
 		value:{
-			title:"Dungeon",
 			tileset:"tiles",
 			map:[[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
 			[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
@@ -213,7 +215,6 @@
 		object:"tilemaps",
 		property:"map_above",
 		value:{
-			title:"Dungeon",
 			tileset:"tiles",
 			map:[[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],
 			[-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1],

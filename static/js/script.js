@@ -18,8 +18,8 @@ $(document).ready(function() {
         var hasArgs = data.indexOf("/");
         if (hasArgs != -1) {
             var event = data.substr(0, hasArgs);
-            var args = [data.substr(hasArgs+1)];
-            eventMan.fire(event, args);
+            var args = eval("("+data.substr(hasArgs+1)+")");
+            eventMan.fire(event, [args]);
         } else {
             eventMan.fire(data);
         }

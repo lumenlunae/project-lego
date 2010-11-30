@@ -7,7 +7,9 @@
 [submodule "lib/express"]
 	path = lib/express
 	url = http://github.com/visionmedia/express.git
-
+[submodule "lib/akihabara"]
+	path = lib/akihabara
+	url = http://github.com/kesiev/akihabara.git
 [submodule "lib/html5-boilerplate"]
 	path = lib/html5-boilerplate
 	url = http://github.com/robrighter/html5-boilerplate.git

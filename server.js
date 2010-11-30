@@ -3,6 +3,7 @@ require(__dirname + "/lib/setup").ext( __dirname + "/lib").ext( __dirname + "/li
 var connect = require('connect')
 , express = require('express')
 , sys = require('sys')
+, fs = require('fs')
 , nodegame = require('./server/gameserver')
 , port = 3001;
 
@@ -55,7 +56,7 @@ server.listen(port);
 // Setup game
 MMO = nodegame.Model(server, 20);
 require('./server/game');
-MMO.Server({
+var gameserver = MMO.Server({
     'port': Math.abs(process.argv[2]) || 3001,
     'status': false
 });
@@ -72,7 +73,21 @@ server.get('/', function(req,res){
     });
 });
 
+server.get('/getLevel/:area?', function(req, res) {
+	// server needs to keep track of where a user is, and if
+	// they request a level, where they're expecting to go
+	fs.readFile('./client/maps/bundle-map-area' + req.params.area + '.js', function(err, data) {
+			if (err) throw err;
+			// game is in charge of printing out the latest info about the area
+			// to the player
 
+			data = data.toString();
+			data = data.replace("REPLACEME;", gameserver.$$.printBundle(req.params.area));
+			
+			res.send(data);
+	});
+	
+});
 //A Route for Creating a 500 Error (Useful to keep around)
 server.get('/500', function(req, res){
     throw new Error('This is a 500 Error');

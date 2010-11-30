@@ -1,18 +1,34 @@
 $(document).ready(function() {
    eventMan = new manager.EventMan();
 
+	 eventMan.on("g_changeLevel", function(level) {
+		 console.log("g_changeLevel");
+		 socket.send("g_changeLevel//{level:" +  level + "}");
+	 });
+	 eventMan.on("g_loadedLevel", function(level) {
+		 console.log("g_loadedLevel", level);
+		 socket.send("g_loadedLevel//{level:" +  level + "}");
+	 });
    eventMan.on("g_enemyDied", function() {
-       socket.send("g_enemyDied");
+		 console.log("sending enemy died");
+     socket.send("g_enemyDied");
    });
    eventMan.on("s_broadcast", function(data) {
        console.log(data);
-       popDialogue(data);
+       popDialogue(data.msg);
    });
    eventMan.on("s_enemySpawn", function() {
        maingame.addEnemy(null, "monster", 23, 26, true);
        maingame.addEnemy(null, "monster", 23, 26, true);
    });
-
+	 eventMan.on("s_addPlayer", function(data) {
+		 console.log(data);
+		 console.log("ADD PLAYER", data);
+		 maingame.addPlayer(data);
+	 });
+	 eventMan.on("s_update", function(data) {
+		 console.log(data);
+	 });
 });
 
 this.manager = {
