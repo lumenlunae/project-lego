@@ -1,22 +1,25 @@
 var noface;
 var dialogues = {};
 var maingame;
+var fps = 20;
 var tilemaps = {};
 var pathmaps = [];
 var serverDialogue = {
 	text: [],
 	window : {}
 };
-	
+var PLAYER = "player";
 var frame_count = 0;
 var touchParams = {
-	title: 'aki'
+	title: 'aki',
+	fps: fps
 };
 var fullParams = {
 	title: 'aki',
 	width: 320,
 	height: 240,
-	zoom: 2
+	zoom: 2,
+	fps: fps
 };
 
 window.addEventListener('load', loadResources, false);
@@ -48,15 +51,49 @@ function loadResources() {
 }
 
 function main() {
-	gbox.setGroups(['background', 'foreground', 'player', 'moving_objects', 'objects', 'projectiles', 'sparks', 'above', 'hud', 'game']);
+	gbox.setGroups(['background', 'foreground', 'player', 'movingobjects', 'objects', 'projectiles', 'sparks', 'above', 'hud', 'game']);
 	gbox.setRenderOrder(["background", "foreground", gbox.ZINDEX_LAYER, "sparks", "above", "hud", "game"]);
 
 	maingame = gamecycle.createMaingame('game', 'game');
 	maingame.gameMenu = function() {
 		return true;
 	};
+	maingame.seqID = 0;
+	maingame.lasttime = (new Date()).getTime();
+	maingame.messages = [];
+	// zero index has farthest input, last index has most recent
+	maingame.inputs = [];
+	maingame.queueMessage = function(msg) {
+		this.messages.push(msg);
+	};
+	maingame.processMessages = function() {
+		while(this.messages.length > 0) {
+			var msg = this.messages.shift();
+			this.handleMessage(msg);
+		}
+	};
+	maingame.handleMessage = function(msg) {
+		eventMan.fire(msg.event, [msg.data, parseInt(msg.time), msg.seqID, msg.ack]);
+	};
+	// keep 1 sec worth of client local input
+	maingame.queueInput = function(input, state) {
+		var move = {
+			time: (new Date).getTime(),
+			seqID: maingame.seqID,
+			input: input,
+			state: state
+		};
+		// determine if important move
+		//
+		
+		if (this.inputs.length >= fps)
+			this.inputs.shift();
+		this.inputs.push(move);
+	};
 
-
+	maingame.first = function() {
+		this.processMessages();
+	};
 	maingame.gameIntroAnimation = function() {
 		return true;
 	};
@@ -84,7 +121,7 @@ function main() {
 	maingame.changeLevel = function(level) {
 		gbox.trashGroup("background");
 		gbox.trashGroup("foreground");
-		gbox.trashGroup("moving_objects");
+		gbox.trashGroup("movingobjects");
 		gbox.trashGroup("objects");
 		gbox.trashGroup("projectiles");
 
@@ -97,8 +134,8 @@ function main() {
 		if (tilemaps.map_middle) delete tilemaps.map_middle;
 		if (tilemaps.map_above) delete tilemaps.map_above;
 		// Here we request a level from the server
-		maingame.loadBundle("/getLevel/"+level)
-		eventMan.fire("g_loadedLevel", [level]);
+		maingame.loadBundle("/getLevel/"+level, level)
+		
 
 	};
 
@@ -106,7 +143,7 @@ function main() {
 
 	};
 
-	maingame.loadBundle = function(bundleURL) {
+	maingame.loadBundle = function(bundleURL, level) {
 		gbox.addBundle({
 			//file: "/resources/bundle-map-area" + level + ".js",
 			file: bundleURL,
@@ -152,7 +189,7 @@ function main() {
 
 				gbox.blitTilemap(gbox.getCanvasContext("canvas_above"), tilemaps.map_above);
 				tilemaps.map.addObjects();
-				
+				eventMan.fire("g_loadedLevel", [level]);
 			}
 		});
 	};
@@ -270,7 +307,7 @@ function main() {
 			case "monster": {
 				obj = gbox.addObject({
 					id: id,
-					group: "moving_objects",
+					group: "movingobjects",
 					tileset: "skel1",
 					zindex: 0,
 					invultimer: 0,
@@ -357,7 +394,7 @@ function main() {
 					first: function() {
 						if (this.stilltimer) this.stilltimer--;
 						if (this.invultimer) this.invultimer--;
-						if (objectIsAlive(this)) {
+						if (objectIsAlive(this)&&false) {
 							if (!this.killed) {
 								if (!this.stilltimer) toys.topview.wander(this, tilemaps.map_middle, "map", 100, {
 									speed: 1,
@@ -370,7 +407,7 @@ function main() {
 								})) this.attack();
 								generalCollisionCheck(this);
 								toys.topview.e.objectwallCollision(this, {
-									group: "moving_objects"
+									group: "movingobjects"
 								});
 								toys.topview.adjustZindex(this);
 								if (!this.stilltimer)
@@ -416,7 +453,7 @@ function main() {
 		var td = gbox.getTiles(tilemaps.map_below.tileset);
 		gbox.addObject({
 			questid: questid,
-			group: "moving_objects",
+			group: "movingobjects",
 			tileset: "traveler",
 			zindex: 0,
 			framespeed: 3,
@@ -443,12 +480,12 @@ function main() {
 				this.counter = (this.counter+1) % 12;
 				generalCollisionCheck(this);
 				toys.topview.e.objectwallCollision(this, {
-					group: "moving_objects"
+					group: "movingobjects"
 				});
 				toys.topview.adjustZindex(this);
 				if (this.isTalking) {
 					this.frame = [0]
-					if (!gbox.getObject("moving_objects", "dialogue")) {
+					if (!gbox.getObject("movingobjects", "dialogue")) {
 						this.amTalking = false;
 						if ((this.questid != null) && (!tilemaps.queststatus[this.questid])) {
 							tilemaps.queststatus[this.questid] = true;
@@ -483,11 +520,14 @@ function main() {
 			}
 		});
 	};
-
-	maingame.addPlayer = function(pos) {
+	maingame.deleteRemotePlayer = function(data) {
+		var player = gbox.getObject("player", data.id);
+		gbox.trashObject(player);
+	};
+	maingame.addRemotePlayer = function(data) {
 		var td = gbox.getTiles(tilemaps.map_below.tileset);
 		gbox.addObject({
-			id: "player",
+			id: data.id,
 			group: "player",
 			tileset: "player",
 			zindex: 0,
@@ -496,21 +536,24 @@ function main() {
 			framespeed: 5,
 			isPaused: false,
 			haspushing: true,
+			time: 0,
+			lasttime: 0,
 			doPause: function(p) {
 				this.isPaused = p;
 			},
 			initialize: function() {
 				toys.topview.initialize(this, {});
-				if (pos.tx)	this.x = pos.tx * td.tilew;
-				else if (pos.x) this.x = pos.x;
-				if (pos.ty) this.y = pos.ty * td.tileh;
-				else if (pos.y) this.y = pos.y;
+				if (data.tx)	this.x = data.tx * td.tilew;
+				else if (data.x) this.x = data.x;
+				if (data.ty) this.y = data.ty * td.tileh;
+				else if (data.y) this.y = data.y;
 				this.fliph = false;
 				this.frames = generalAnimList(this);
 				this.shadow = {
 					tileset: "shadows",
 					tile: 0
 				};
+				this.lasttime = new Date().getTime();
 			},
 			collisionEnabled: function() {
 				return !maingame.gameIsHold()&&!this.killed&&!this.invultimer&&!this.isPaused;
@@ -526,17 +569,13 @@ function main() {
 			kill: function(by) {
 				this.accz = -8;
 				this.killed = true;
-				maingame.playerDied({
-					wait: 50
-				});
 			},
 			attack: function() {
 				this.stilltimer = 10;
-
 				// sword
 				toys.topview.fireBullet("projectiles", null, {
 					fullhit: true,
-					collidegroup: "moving_objects",
+					collidegroup: "movingobjects",
 					map: tilemaps.map_middle,
 					undestructable: true,
 					power: 1,
@@ -556,42 +595,23 @@ function main() {
 				});
 			},
 			first: function() {
-				if (this.stilltimer) this.stilltimer--;
-				if (this.invultimer) this.invultimer--;
+			
+			},
+			then: function() {
+				// ignore for now until we figure out what to do.
+				if (false) {
+					if (this.stilltimer) this.stilltimer--;
+					if (this.invultimer) this.invultimer--;
 
-				this.counter = (this.counter+1)%60;
-				if (this.stilltimr||maingame.gameIsHold()||this.isPaused||this.killed) {
-					toys.topview.controlKeys(this, {});
-				} else {
-					toys.topview.controlKeys(this, {
-						left: "left",
-						right: "right",
-						up: "up",
-						down: "down"
+					generalCollisionCheck(this);
+					toys.topview.spritewallCollision(this, {
+						group: "movingobjects"
 					});
-				}
-				generalCollisionCheck(this);
-				toys.topview.spritewallCollision(this, {
-					group: "moving_objects"
-				});
-				toys.topview.adjustZindex(this);
+					toys.topview.adjustZindex(this);
 
 
-				if (!this.stilltimer&&!this.killed) {
-					generalAnimFramesAndFacing(this);
-				}
-				if (!this.stilltimer&&!this.isPaused&&!maingame.gameIsHold()&&!this.killed) {
-					if (gbox.keyIsHit("a"))
-						this.attack();
-					else if (gbox.keyIsHit("b")) {
-						var ahead = toys.topview.getAheadPixel(this, {
-							distance: 5
-						});
-						ahead.group = "moving_objects";
-						ahead.call = "doPlayerAction";
-						if (!toys.topview.callInColliding(this, ahead)) {
-
-					}
+					if (!this.stilltimer&&!this.killed) {
+						generalAnimFramesAndFacing(this);
 					}
 				}
 			},
@@ -620,6 +640,203 @@ function main() {
 
 		})
 	};
+	maingame.addPlayer = function(data) {
+		var td = gbox.getTiles(tilemaps.map_below.tileset);
+		PLAYER = data.id;
+		gbox.addObject({
+			id: data.id,
+			group: "player",
+			tileset: "player",
+			zindex: 0,
+			stilltimer: 0,
+			invultimer: 0,
+			framespeed: 5,
+			isPaused: false,
+			haspushing: true,
+			time: 0,
+			lasttime: 0,
+			xpushing: toys.PUSH_NONE,
+			ypushing: toys.PUSH_NONE,
+			keys: {},
+			doPause: function(p) {
+				this.isPaused = p;
+			},
+			initialize: function() {
+				toys.topview.initialize(this, {});
+				if (data.tx)	this.x = data.tx * td.tilew;
+				else if (data.x) this.x = data.x;
+				if (data.ty) this.y = data.ty * td.tileh;
+				else if (data.y) this.y = data.y;
+				this.fliph = false;
+				this.frames = generalAnimList(this);
+				this.shadow = {
+					tileset: "shadows",
+					tile: 0
+				};
+				this.lasttime = new Date().getTime();
+			},
+			collisionEnabled: function() {
+				return !maingame.gameIsHold()&&!this.killed&&!this.invultimer&&!this.isPaused;
+			},
+			hitByBullet: function(by) {
+				if (this.collisionEnabled()) {
+					this.accz = -5;
+					this.invultimer = 30;
+					this.stilltimer = 10;
+					return by.undestructable;
+				} else return true;
+			},
+			kill: function(by) {
+				this.accz = -8;
+				this.killed = true;
+				maingame.playerDied({
+					wait: 50
+				});
+			},
+			attack: function() {
+				this.stilltimer = 10;
+
+				// sword
+				toys.topview.fireBullet("projectiles", null, {
+					fullhit: true,
+					collidegroup: "movingobjects",
+					map: tilemaps.map_middle,
+					undestructable: true,
+					power: 1,
+					from: this,
+					sidex: this.facing,
+					sidey: this.facing,
+					tileset: "swordhit",
+					frames: {
+						speed: 1,
+						frames: [0,1]
+					},
+					duration: 4,
+					acc: 5,
+					fliph: (this.facing==toys.FACE_RIGHT),
+					flipv: (this.facing == toys.FACE_DOWN),
+					angle: toys.FACES_ANGLE[this.facing]
+				});
+			},
+			state: function() {
+				var a = {
+					x: this.x,
+					y: this.y,
+					accx: this.accx,
+					accy: this.accy,
+					xpushing: this.xpushing,
+					ypushing: this.ypushing,
+					facing: this.facing
+				};
+				return a;
+			},
+			first: function() {
+				var keys = {
+					left: "left",
+					right: "right",
+					up: "up",
+					down: "down"
+				};
+
+				// need to integrate better, but this is specific for sending to server
+				var keymsgs = [];
+				if (gbox.keyIsPressed(keys.left)) {
+					keymsgs.push(keys.left);
+					this.keys.pressleft = true;
+				} else if (gbox.keyIsPressed(keys.right)) {
+					keymsgs.push(keys.right);
+					this.keys.pressright = true;
+				}
+				if (gbox.keyIsPressed(keys.up)) {
+					keymsgs.push(keys.up);
+					this.keys.pressup = true;
+				} else if (gbox.keyIsPressed(keys.down)) {
+					keymsgs.push(keys.down);
+					this.keys.pressdown = true;
+				}
+				if (keymsgs.length > 0) {
+					
+				}
+				this.input = keymsgs;
+				eventMan.fire("g_sendInput", [keymsgs]);
+				maingame.queueInput(this.keys, this.state());
+
+				
+				if (!this.stilltimer&&!this.isPaused&&!maingame.gameIsHold()&&!this.killed) {
+					if (gbox.keyIsHit("a")) {
+						var p = gbox._objects["player"][PLAYER];
+						console.log(p.x, p.y);
+						this.attack();
+					}
+					else if (gbox.keyIsHit("b")) {
+						var ahead = toys.topview.getAheadPixel(this, {
+							distance: 5
+						});
+						ahead.group = "movingobjects";
+						ahead.call = "doPlayerAction";
+						if (!toys.topview.callInColliding(this, ahead)) {
+							// something?
+							// supposedly change weapon
+							var miss = true;
+						}
+					}
+				}
+			},
+			then: function() {
+				if (this.stilltimer) this.stilltimer--;
+				if (this.invultimer) this.invultimer--;
+
+				this.counter = (this.counter+1)%60;
+
+				if (this.stilltimer||maingame.gameIsHold()||this.isPaused||this.killed) {
+					toys.topview.controlKeys(this, {});
+				} else {
+					toys.topview.controlKeys(this, this.keys);
+
+				}
+				
+				generalCollisionCheck(this);
+				toys.topview.spritewallCollision(this, {
+					group: "movingobjects"
+				});
+				toys.topview.adjustZindex(this);
+
+
+				if (!this.stilltimer&&!this.killed) {
+					generalAnimFramesAndFacing(this);
+				}
+
+			},
+			blit: function() {
+				if ((this.invultimer%2) == 0) {
+					gbox.blitTile(gbox.getBufferContext(),{
+						tileset:this.shadow.tileset,
+						tile:this.shadow.tile,
+						dx:this.x,
+						dy:this.y+this.h-gbox.getTiles(this.shadow.tileset).tileh+2,
+						camera:this.camera,
+						alpha: 0.5
+					});
+					gbox.blitTile(gbox.getBufferContext(), {
+						tileset: this.tileset,
+						tile: this.frame,
+						dx: this.x,
+						dy: this.y+ this.z,
+						camera: this.camera,
+						fliph: this.fliph,
+						flipv: this.flipv,
+						alpha: 1.0
+					});
+				}
+			},
+			after: function() {
+				this.hasInput = false;
+				this.input = [];
+				this.keys = {};
+			}
+
+		})
+	};
 	gbox.go();
 }
 
@@ -635,8 +852,8 @@ function addMap(layer, groupid, layerid)
 		},
 		blit: function() {
 			if (this.id == "below") {
-				if (gbox.getObject("player", "player")) {
-					followCamera(gbox.getObject("player", "player"), {
+				if (gbox.getObject("player", PLAYER)) {
+					followCamera(gbox.getObject("player", PLAYER), {
 						w: layer.w,
 						h: layer.h
 					});
@@ -772,19 +989,58 @@ function objectIsAlive(th) {
 
 function popDialogue(data) {
 	serverDialogue.window.push(data);
-/*
-	var window = gbox.getObject("hud", "window_server");
-	toys.dialogue.render(window, "server", {
-		font: "small",
-		hideonend: false,
-		skipkey: null,
-		esckey: null,
-		who: noface,
-		scenes: [{
-			speed: 1,
-			who: "noone",
-			talk: "Something!"
-		}]
-	});
-     */
+}
+
+function historyCorrection(th) {
+	// after input has been received but before processing an update
+	// 
+	// discard out of date inputs based on maingame.lasttime
+	if (maingame.replaying)
+		return;
+	
+	
+
+	while (maingame.inputs.length > 0 && maingame.inputs[0].seqID <= maingame.lastAck) {
+		maingame.inputs.shift();
+	}
+	if (maingame.inputs.length == 0)
+		return;
+
+	if (!stateEquals(maingame.laststate, maingame.inputs[0].state)) {
+		maingame.replaying = true;
+		//maingame.inputs.shift();
+		var savedInput = th.keys;
+
+		// rewind to correction and replay moves
+
+		
+		stateSet(th, maingame.laststate);
+		var i = 0;
+		while (i < maingame.inputs.length) {
+			th.keys = maingame.inputs[i].input;
+			th.then();
+			i++;
+		}
+		maingame.replaying = false;
+		th.keys = savedInput;
+	}
+}
+function stateSet(obj, comp) {
+	obj.x = comp.x;
+	obj.y = comp.y;
+	obj.accx = comp.accx;
+	obj.accy = comp.accy;
+	obj.xpushing = comp.xpushing;
+	obj.ypushing = comp.ypushing;
+	obj.facing = comp.facing;
+}
+function stateEquals(obj, comp) {
+	if (obj.x == comp.x && obj.y == comp.y
+		&& obj.accx == comp.accx && obj.accy == comp.accy
+		&& obj.xpushing == comp.xpushing && obj.ypushing == comp.ypushing
+		&& obj.facing == comp.facing) {
+		return true;
+	} else {
+		return false;
+	}
 }

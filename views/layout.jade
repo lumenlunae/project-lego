@@ -25,6 +25,7 @@ html.no-js(lang= "en")
     script(src="/akihabara/help.js")
     script(src="/akihabara/tool.js")
     script(src="/akihabara/gamecycle.js")
+		script(src="/js/bison.js")
     - var ifIE6 = '<!--[if IE 6 ]> <body class="ie6"> <![endif]-->'
     - var ifOther = "<!--[if (gt IE 6)|!(IE)]><!--> <body> <!--<![endif]-->"
     != ifIE6
@@ -40,7 +41,8 @@ html.no-js(lang= "en")
 
     //- script(src="http://cdn.socket.io/stable/socket.io.js")
     script(src="/js/socket.io.js")
-    script WEB_SOCKET_SWF_LOCATION = "/web-socket-js/WebSocketMain.swf";
+    :javascript
+			| WEB_SOCKET_SWF_LOCATION = "/web-socket-js/WebSocketMainNoCallLater.swf";
     script(src="/js/game.js?v=1")
     script(src="/js/toys_extension.js?v=1")
     script(src="/js/plugins.js?v=1")

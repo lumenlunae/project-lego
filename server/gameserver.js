@@ -2,7 +2,7 @@ var sys = require('sys');
 var fs= require('fs');
 
 var io = require('Socket.IO-node');
-
+var BISON = require('bison');
 // Message types
 var MSG_GAME_START = 1;
 var MSG_GAME_PING = 10;
@@ -61,42 +61,31 @@ function Server(options, model) {
 	this.$ = io.listen(this.model.$);
 
 	this.$.on('connection', function(client){
+		console.log((new Date).getTime());
 		console.log('Client Connected');
 
-		client.on('message', function(message){
+		client.on('message', function(messages){
 			//client.broadcast(message);
 			//client.send(message);
-			message = message.replace("//", "/");
-			var hasArgs = message.indexOf("/");
-			var event = message;
-			var args = null;
-			if (hasArgs != -1) {
-				event = message.substr(0, hasArgs);
-				args = eval("("+message.substr(hasArgs+1)+")");
-			}
-			switch (event) {
-				case "g_enemyDied": {
-					that.$.broadcast("s_broadcast//{msg: 'Enemy Died'}");
-					//client.send("s_broadcast//Enemy Died");
-					//client.send("s_enemySpawn");
-					break;
-				}
-				case "g_changeLevel": {
-					console.log("need to load level " + args.level)
-					break;
-				}
-				case "g_loadedLevel": {
-					console.log("addPlayer");
-					that.$$.addPlayer(this.sessionId, args.level);
-					console.log("addClient");
-					that.addClient(this.sessionId, args.level);
-					console.log("SendaddPlayer");
-					client.send("s_addPlayer//{tx:30, ty:25}")
-					break;
-				}
+			console.log("received message");
+			console.log(messages);
+			messages = BISON.decode(messages);
+			// messages is an array of [event, data]
+			for (var i = 0; i < messages.length; i++) {
+				that.processMessage(this, messages[i]);
 			}
 		});
 		client.on('disconnect', function(){
+			var level = that.removeClient(this.sessionId);
+			if (level != null) that.$$.removePlayer(this.sessionId, level);
+			var msg = that.toBISON({
+				event: "s_delRemote",
+				data: {
+					id:client.sessionId
+				}
+			});
+			this.broadcast(msg);
+			console.log((new Date).getTime());
 			console.log('Client Disconnected.');
 		});
 	});
@@ -140,15 +129,72 @@ function Server(options, model) {
 	this.run();
 }
 
+Server.prototype.processMessage = function(client, msg) {
+	var event = msg.event;
+	var data = msg.data;
+	switch (event) {
+		case "g_enemyDied": {
+			var msg = this.toBISON({
+				event: "s_broadcast",
+				data: {
+					msg: "Enemy Died"
+				}
+			});
+			this.$.broadcast(msg);
+			//client.send("s_broadcast//Enemy Died");
+			//client.send("s_enemySpawn");
+			break;
+		}
+		case "g_changeLevel": {
+			console.log("need to load level " + data.level)
+			break;
+		}
+		case "g_loadedLevel": {
+			console.log("addPlayer");
+			this.$$.addPlayer(client.sessionId, data.level);
+			console.log("addClient");
+			this.addClient(client.sessionId, data.level);
+			var packet = this.toBISON({
+				event: "s_addPlayer",
+				data: {
+					id:client.sessionId,
+					tx:30,
+					ty:25
+				}
+			});
 
+			client.send(packet);
+
+			// send notice to create this remote player to all other
+			//  clients
+			var packet2 = this.toBISON({
+				event: "s_addRemote",
+				data: {
+					id: client.sessionId,
+					tx: 30,
+					ty: 25
+				}
+			});
+			client.broadcast(packet2);
+			break;
+		}
+		case "g_sendInput": {
+			var thisClient = this.getClient(client.sessionId);
+			thisClient.lastAck = msg.seqID;
+			this.$$.movePlayer(thisClient, data.keys);
+			break;
+		}
+	}
+};
 // General ---------------------------------------------------------------------
 Server.prototype.run = function() {
 	var that = this;
 	for(var i in this.actorTypes) {
 		this.actors[i] = [];
 	}
-	this.startTime = new Date().getTime();
-	this.time = new Date().getTime();
+	this.startTime = (new Date()).getTime();
+	this.time = (new Date()).getTime();
+	this.packetID = 0;
 	this.log('>> Server started');
 	this.$$ = new Game(this);
 	this.$$.start();
@@ -232,6 +278,10 @@ Server.prototype.toTime = function(time) {
 	return (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
 };
 
+Server.prototype.toBISON = function(data) {
+	return BISON.encode(data);
+};
+
 Server.prototype.status = function(end) {
 	var that = this;
 	if (!this.showStatus) {
@@ -266,19 +316,28 @@ Server.prototype.status = function(end) {
 
 // Clients ---------------------------------------------------------------------
 Server.prototype.addClient = function(sessionId, level) {
-	this.clientID++;
-	this.clients[level][this.clientID] = new Client(this, sessionId, level);
+	this.clients[level][sessionId] = new Client(this, sessionId, level);
 	this.clientCount++;
-	return this.clientID;
+	return sessionId;
 };
 
 Server.prototype.removeClient = function(id) {
-	if (this.clients[id]) {
-		this.clientCount--;
-		delete this.clients[id];
+	for (var level in this.clients) {
+		if (this.clients[level][id]) {
+			this.clientCount--;
+			delete this.clients[level][id];
+			return level;
+		}
+	}
+	
+};
+Server.prototype.getClient = function(sessionId) {
+	for (var level in this.clients) {
+		if (this.clients[level][sessionId]) {
+			return this.clients[level][sessionId];
+		}
 	}
 };
-
 Server.prototype.updateClients = function() {
 	for(var maps in this.clients) {
 		for (var id in this.clients[maps]) {
@@ -296,12 +355,30 @@ function Client(srv, conn, level) {
 	this.$conn = conn;
 	this.id = this.$.clientID;
 	this.level = level;
+	this.$.updates = 0;
+	this.seqID = 0;
+	this.lastAck = 0;
 }
 
 Client.prototype.update = function() {
-	var state = this.$$.getState(this.level);
-	//console.log(this.id, this.$conn);
-	console.log(this.$.$.clients[0]);
+	if (this.level) {
+		var state = this.$$.getState(this.level);
+		//console.log(this.id, this.$conn);
+		//console.log(state.toString());
+		var time = ((new Date()).getTime()).toString();
+		var msg = this.$.toBISON({
+			event: "s_update",
+			data: {
+				states: state
+			},
+			time: time,
+			seqID: ++this.seqID,
+			ack: this.lastAck
+		});
+		//console.log("data sent to " + this.$conn + " : " + msg.length + " / time: " + this.$.timeDiff((new Date()).getTime()));
+		this.$.updates++;
+		this.$.$.clients[this.$conn].send(msg)
+	}
 };
 
 // Game ------------------------------------------------------------------------
@@ -312,7 +389,7 @@ function Game(srv) {
 	this.mapsDir = "./server/maps";
 	this.maps = {};
 	this.clients = {};
-	this.groups = ["player", "moving_objects", "objects"];
+	this.groups = ["player", "movingobjects", "objects"];
 	for(var m in this.$.model.game) {
 		this[m] = this.$.model.game[m];
 	}
@@ -327,6 +404,7 @@ Game.prototype.start = function() {
 
 Game.prototype.run = function() {
 	if (this.$running) {
+		/*
 		this.$.time = new Date().getTime();
 		while(this.$lastTime <= this.$.time) {
 			this.onUpdate();
@@ -338,6 +416,18 @@ Game.prototype.run = function() {
 		setTimeout(function(){
 			that.run();
 		}, 5);
+		*/
+		this.$lastTime = (new Date()).getTime();
+		// update
+		this.onUpdate();
+		this.$.updateClients();
+
+		this.$.time = (new Date()).getTime();
+		this.$lastTime = this.$interval - (this.$.time - this.$lastTime);
+		var that = this;
+		setTimeout(function() {
+			that.run();
+		}, (this.$lastTime<=0?1:this.$lastTime));
 	}
 };
 Game.prototype.getState = function(area) {
@@ -346,11 +436,35 @@ Game.prototype.getState = function(area) {
 		state[this.groups[i]] = {};
 		for (var name in this.maps[area].gbox._objects[this.groups[i]]) {
 			var obj = this.maps[area].gbox._objects[this.groups[i]][name];
-			state[this.groups[i]][name] = obj;
+			state[this.groups[i]][name] = {
+				x: obj.x,
+				y: obj.y,
+				accx: obj.accx,
+				accy: obj.accy,
+				ypushing: obj.ypushing,
+				xpushing: obj.xpushing,
+				facing: obj.facing
+			};
 		}
 	}
 	return state;
 }
+
+Game.prototype.printStatus = function() {
+	var state = "";
+	for (var area in this.maps) {
+		state += "Area:\t"+ area + "\n";
+		for (var i = 0; i < this.groups.length; i++) {
+			for (var name in this.maps[area].gbox._objects[this.groups[i]]) {
+				var obj = this.maps[area].gbox._objects[this.groups[i]][name];
+				state += "\t"+obj.id+"\t("+obj.x+","+obj.y+")\n";
+			}
+		}
+		state += "\n\n";
+	}
+	return state;
+};
+
 Game.prototype.printBundle = function(area) {
 	// capture all objects in certain map layers
 	// and based on their coordinates, create string with their values
@@ -360,21 +474,26 @@ Game.prototype.printBundle = function(area) {
 			var obj = this.maps[area].gbox._objects[this.groups[i]][name];
 			if (obj.type == "npc") code += this.printNpc(obj);
 			else if (obj.type == "enemy") code += this.printEnemy(obj);
+			else if (obj.type == "player") code += this.printPlayer(obj);
 		}
 	}
-	console.log(code);
 	return code;
 };
 
 Game.prototype.printNpc = function(obj) {
 	var code = "maingame.addNpc({x:";
 	code += obj.x + ", y:" + obj.y + "}, [0],'" + obj.myDialogue;
-	code += "', null, [4,5]);\n"
+	code += "', null, [4,5]);\n";
 	return code;
 };
 Game.prototype.printEnemy = function(obj) {
 	var code = "maingame.addEnemy('"+obj.id+"','"+obj.enemyclass;
-	code += "',{x:"+obj.x+",y:"+obj.y+"}, true);\n"
+	code += "',{x:"+obj.x+",y:"+obj.y+"}, true);\n";
+	return code;
+};
+Game.prototype.printPlayer = function(obj) {
+	var code = "maingame.addRemotePlayer({id:"+obj.id+",x:"+obj.x;
+	code += ",y:"+obj.y+"});\n";
 	return code;
 };
 Game.prototype.addPlayer = function(id, level) {
@@ -383,10 +502,17 @@ Game.prototype.addPlayer = function(id, level) {
 		ty:25
 	});
 };
+Game.prototype.movePlayer = function(client, dir) {
+	this.maps[client.level].movePlayer(client.$conn, dir);
+};
+Game.prototype.removePlayer = function(id, level) {
+	this.maps[level].removePlayer(id);
+};
 Game.prototype.onInit = function() {
 	};
 
 Game.prototype.onUpdate = function() {
+
 	};
 
 Game.prototype.onShutdown = function() {

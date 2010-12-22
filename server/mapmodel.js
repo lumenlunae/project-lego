@@ -27,7 +27,7 @@ function MapModel(area, aki2){
 	$trigo = trigo;
 	$help = help;
 	this.gbox = gbox;
-	this.gbox.setGroups(['background', 'foreground', 'player', 'moving_objects', 'objects', 'projectiles', 'sparks', 'above', 'hud', 'game']);
+	this.gbox.setGroups(['background', 'foreground', 'player', 'movingobjects', 'objects', 'projectiles', 'sparks', 'above', 'hud', 'game']);
 	this.gbox.setRenderOrder(["background", "foreground", this.gbox.ZINDEX_LAYER, "sparks", "above", "hud", "game"]);
 
 	if (this.area.setObject) {
@@ -86,28 +86,51 @@ MapModel.prototype.onUpdate = function() {
 
 MapModel.prototype.gameIsHold = function() {
 	return false;
-}
-MapModel.prototype.playerDied = function(data) {
+};
+MapModel.prototype.playerDied = function() {
 	
+	};
+MapModel.prototype.removePlayer = function(id) {
+	this.gbox.trashObject(this.gbox.getObject("player", id));
+};
+MapModel.prototype.movePlayer = function(id, keys) {
+	if (!isEmpty(keys)) {
+		var player = this.gbox.getObject("player", id);
+		console.log("move player!");
+		console.log(id, keys);
+		console.log(player.id);
+		player.hasInput = true;
+		player.input = keys;
+		player.update();
+		console.log(player.x, player.y);
 	}
+};
 MapModel.prototype.addPlayer = function(id, pos) {
 	var that = this;
-	this.clients
 	var td = this.gbox.getTiles(that.tilemaps.map_below.tileset);
+	console.log("add player: ");
+	console.log(id, pos);
 	this.gbox.addObject({
 		id: id,
 		group: "player",
 		tileset: "player",
+		type: "player",
 		zindex: 0,
 		stilltimer: 0,
 		invultimer: 0,
 		framespeed: 5,
+		xpushing: 0,
+		ypushing: 0,
 		isPaused: false,
 		haspushing: true,
+		hasInput: false,
+		keys: {},
+		input: [],
 		doPause: function(p) {
 			this.isPaused = p;
 		},
 		initialize: function() {
+			console.log("INIT PLAYER????");
 			$toys.topview.initialize(this, {});
 			if (pos.tx)	this.x = pos.tx * td.tilew;
 			else if (pos.x) this.x = pos.x;
@@ -118,6 +141,8 @@ MapModel.prototype.addPlayer = function(id, pos) {
 				tileset: "shadows",
 				tile: 0
 			};
+			console.log("INIT PLAYER");
+			console.log(this.x, this.y);
 		},
 		collisionEnabled: function() {
 			return !that.gameIsHold()&&!this.killed&&!this.invultimer;
@@ -143,7 +168,7 @@ MapModel.prototype.addPlayer = function(id, pos) {
 			// sword
 			toys.topview.fireBullet("projectiles", null, {
 				fullhit: true,
-				collidegroup: "moving_objects",
+				collidegroup: "movingobjects",
 				map: that.tilemaps.map_middle,
 				undestructable: true,
 				power: 1,
@@ -162,11 +187,46 @@ MapModel.prototype.addPlayer = function(id, pos) {
 				angle: $toys.FACES_ANGLE[this.facing]
 			});
 		},
+		update: function() {
+			this.first();
+			this.then();
+			this.blit();
+			this.after();
+		},
 		first: function() {
-				
+			// grab inputs from a source, in this case keys
+			if (this.input.indexOf("left") > -1) this.keys.pressleft = true;
+			else if (this.input.indexOf("right") > -1) this.keys.pressright = true;
+			if (this.input.indexOf("up") > -1) this.keys.pressup = true;
+			else if (this.input.indexOf("down") > -1) this.keys.pressdown = true;
+
+		// have section for button presses
+			
+		},
+		then: function() {
+			if (this.stilltimer) this.stilltimer--;
+			if (this.invultimer) this.invultimer--;
+
+			// grab inputs from a source, in this case keys
+			if (this.stilltimer||that.gameIsHold()||this.isPaused||this.killed) {
+				$toys.topview.controlKeys(this, {});
+			} else {
+				$toys.topview.controlKeys(this, this.keys);
+			}
+			that.generalCollisionCheck(this);
+			$toys.topview.spritewallCollision(this, {
+				group: "movingobjects"
+			});
+			$toys.topview.adjustZindex(this);
 		},
 		blit: function() {
 				
+		},
+		after: function() {
+			// reset inputs
+			this.hasInput = false;
+			this.input = [];
+			this.keys = {};
 		}
 
 	});
@@ -180,7 +240,7 @@ MapModel.prototype.addEnemy = function(id, type, pos, cloud) {
 		case "monster": {
 			obj = this.gbox.addObject({
 				id: id,
-				group: "moving_objects",
+				group: "movingobjects",
 				tileset: "skel1",
 				enemyclass: type,
 				type: "enemy",
@@ -188,6 +248,8 @@ MapModel.prototype.addEnemy = function(id, type, pos, cloud) {
 				invultimer: 0,
 				stilltimer: 0,
 				framespeed: 3,
+				xpushing: 0,
+				ypushing: 0,
 				initialize: function() {
 
 					$toys.topview.initialize(this, {
@@ -261,7 +323,7 @@ MapModel.prototype.addEnemy = function(id, type, pos, cloud) {
 						})) this.attack();
 						that.generalCollisionCheck(this);
 						$toys.topview.e.objectwallCollision(this, {
-							group: "moving_objects"
+							group: "movingobjects"
 						});
 						$toys.topview.adjustZindex(this);
 						if (!this.stilltimer)
@@ -285,7 +347,7 @@ MapModel.prototype.addNpc = function(pos, still, dialogue, questid, talking, sil
 	var that = this;
 	this.gbox.addObject({
 		questid: questid,
-		group: "moving_objects",
+		group: "movingobjects",
 		type: "npc",
 		tileset: "traveler",
 		zindex: 0,
@@ -293,6 +355,8 @@ MapModel.prototype.addNpc = function(pos, still, dialogue, questid, talking, sil
 		myDialogue: dialogue,
 		isTalking: false,
 		silence: silence,
+		xpushing: 0,
+		ypushing: 0,
 		doPlayerAction: function(sw) {
 			this.isTalking = true;
 		//maingame.startDialogue(this.myDialogue);
@@ -308,12 +372,12 @@ MapModel.prototype.addNpc = function(pos, still, dialogue, questid, talking, sil
 			this.counter = (this.counter+1) % 12;
 			that.generalCollisionCheck(this);
 			$toys.topview.e.objectwallCollision(this, {
-				group: "moving_objects"
+				group: "movingobjects"
 			});
 			$toys.topview.adjustZindex(this);
 			if (this.isTalking) {
 				this.frame = [0]
-				if (!this.gbox.getObject("moving_objects", "dialogue")) {
+				if (!this.gbox.getObject("movingobjects", "dialogue")) {
 					this.amTalking = false;
 					if ((this.questid != null) && (!that.tilemaps.queststatus[this.questid])) {
 						that.tilemaps.queststatus[this.questid] = true;
@@ -363,4 +427,13 @@ MapModel.prototype.generalCollisionCheck = function(obj) {
 
 exports.MapModel = function(area, aki) {
 	return new MapModel(area, aki);
+}
+
+function isEmpty(obj) {
+	for(var prop in obj) {
+		if(obj.hasOwnProperty(prop))
+			return false;
+	}
+
+	return true;
 }
